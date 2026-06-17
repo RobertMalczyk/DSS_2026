@@ -1,0 +1,194 @@
+{
+  "A_v2": {
+    "label": "A_v2 clean->clean",
+    "track_acc_mean": 0.9640000000000001,
+    "track_acc_std": 0.014966629547095779,
+    "window_acc_mean": 0.9328421052631579,
+    "window_acc_std": 0.02091957955754052,
+    "fold_track_acc": [
+      0.94,
+      0.96,
+      0.98,
+      0.98,
+      0.96
+    ],
+    "per_genre_acc": {
+      "jazz": 0.9880952380952381,
+      "metal": 0.963855421686747,
+      "pop": 0.9397590361445783
+    },
+    "per_genre_correct": {
+      "jazz": 83,
+      "metal": 80,
+      "pop": 78
+    },
+    "per_genre_total": {
+      "jazz": 84,
+      "metal": 83,
+      "pop": 83
+    },
+    "wrong_total": 9,
+    "total": 250,
+    "confusion": [
+      [
+        83,
+        1,
+        0
+      ],
+      [
+        0,
+        80,
+        3
+      ],
+      [
+        3,
+        2,
+        78
+      ]
+    ]
+  },
+  "B_v2": {
+    "label": "B_v2 noisy->noisy",
+    "track_acc_mean": 0.916,
+    "track_acc_std": 0.014966629547095742,
+    "window_acc_mean": 0.8629473684210527,
+    "window_acc_std": 0.02389635978722144,
+    "fold_track_acc": [
+      0.9,
+      0.92,
+      0.92,
+      0.94,
+      0.9
+    ],
+    "per_genre_acc": {
+      "jazz": 0.9166666666666666,
+      "metal": 0.9397590361445783,
+      "pop": 0.891566265060241
+    },
+    "per_genre_correct": {
+      "jazz": 77,
+      "metal": 78,
+      "pop": 74
+    },
+    "per_genre_total": {
+      "jazz": 84,
+      "metal": 83,
+      "pop": 83
+    },
+    "wrong_total": 21,
+    "total": 250,
+    "confusion": [
+      [
+        77,
+        1,
+        6
+      ],
+      [
+        1,
+        78,
+        4
+      ],
+      [
+        8,
+        1,
+        74
+      ]
+    ]
+  },
+  "H_v2": {
+    "label": "H_v2 clean->7th",
+    "track_acc_mean": 0.7959999999999999,
+    "track_acc_std": 0.054258639865002144,
+    "window_acc_mean": 0.6574736842105262,
+    "window_acc_std": 0.04649057927385756,
+    "fold_track_acc": [
+      0.74,
+      0.74,
+      0.78,
+      0.86,
+      0.86
+    ],
+    "per_genre_acc": {
+      "jazz": 0.8452380952380952,
+      "metal": 0.7831325301204819,
+      "pop": 0.7590361445783133
+    },
+    "per_genre_correct": {
+      "jazz": 71,
+      "metal": 65,
+      "pop": 63
+    },
+    "per_genre_total": {
+      "jazz": 84,
+      "metal": 83,
+      "pop": 83
+    },
+    "wrong_total": 51,
+    "total": 250,
+    "confusion": [
+      [
+        71,
+        0,
+        13
+      ],
+      [
+        5,
+        65,
+        13
+      ],
+      [
+        6,
+        14,
+        63
+      ]
+    ]
+  },
+  "M_v2": {
+    "label": "M_v2 noisy->7th",
+    "track_acc_mean": 0.332,
+    "track_acc_std": 0.009797958971132722,
+    "window_acc_mean": 0.33284210526315794,
+    "window_acc_std": 0.009210375938622058,
+    "fold_track_acc": [
+      0.32,
+      0.34,
+      0.32,
+      0.34,
+      0.34
+    ],
+    "per_genre_acc": {
+      "jazz": 0.7976190476190477,
+      "metal": 0.0,
+      "pop": 0.1927710843373494
+    },
+    "per_genre_correct": {
+      "jazz": 67,
+      "metal": 0,
+      "pop": 16
+    },
+    "per_genre_total": {
+      "jazz": 84,
+      "metal": 83,
+      "pop": 83
+    },
+    "wrong_total": 167,
+    "total": 250,
+    "confusion": [
+      [
+        67,
+        0,
+        17
+      ],
+      [
+        66,
+        0,
+        17
+      ],
+      [
+        67,
+        0,
+        16
+      ]
+    ]
+  }
+}

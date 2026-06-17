@@ -1,0 +1,2 @@
+experiment,mean_acc,std_acc,window_mean_acc,window_std_acc,wrong_total,total,acc_jazz,acc_metal,acc_pop
+clean_train_adaptivems_6th_stage_test,0.492,0.020396078054371138,0.4646315789473684,0.017291376167057743,127,250,0.5238095238095238,0.0,0.9518072289156626

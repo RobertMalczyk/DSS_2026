@@ -1,0 +1,20 @@
+Signal samples (out/Samples/)
+
+Format : 32-bit float WAV, native sample rate, no normalisation.
+
+==========================================================================
+file          : Samples/ecg_noisy.wav   (14.1 KB)
+sample rate   : 360 Hz
+samples       : 3600
+duration      : 10.000 s
+==========================================================================
+file          : Samples/vibration_noisy.wav   (140.7 KB)
+sample rate   : 12000 Hz
+samples       : 36000
+duration      : 3.000 s
+==========================================================================
+file          : Samples/music_noisy.wav   (344.6 KB)
+sample rate   : 22050 Hz
+samples       : 88200
+duration      : 4.000 s
+==========================================================================

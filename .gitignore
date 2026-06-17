@@ -1,0 +1,25 @@
+# DSS 2026 — conference repo. Code + figures only; bulky/regenerable data is
+# kept out so the public repo stays small. This project is not maintained.
+
+# Audio dataset (~2.3 GB, regenerable from Signal_generation)
+*.wav
+
+# Feature caches / matrices (regenerable)
+*.npy
+*.mat
+
+# Slide decks and drafts (kept locally)
+*.pptx
+~$*
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Local tool config
+.claude/
+**/settings.local.json
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
