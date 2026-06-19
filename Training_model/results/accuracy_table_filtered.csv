@@ -1,0 +1,2 @@
+experiment,mean_acc,std_acc,window_mean_acc,window_std_acc,wrong_total,total,acc_jazz,acc_metal,acc_pop
+clean_train_filtered_AI_test,0.404,0.06374950980203689,0.40884210526315795,0.03988126421588292,149,250,0.9880952380952381,0.0,0.21686746987951808

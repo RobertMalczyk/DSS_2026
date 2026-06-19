@@ -1,0 +1,50 @@
+Full clean / noise metrics  (out/Samples/Clean/metrics.txt)
+
+Target SNR : -10.0 dB  (identical on every signal)
+Noise model: see ../noise.md
+
+This file is intentionally kept inside Clean/ so the downstream
+Signal_detection_RAW project never sees it — denoising must work
+without knowing the clean RMS, the noise RMS, the achieved SNR,
+or whether any signal was clipped.
+
+==========================================================================
+tag           : ecg
+clean file    : Samples/Clean/ecg_clean.wav   (14.1 KB)
+sample rate   : 360 Hz
+samples       : 3600
+duration      : 10.000 s
+units         : mV
+achieved SNR  : -10.00 dB
+RMS clean     : 0.3624 mV
+RMS noise     : 1.146 mV
+peak clean    : 0.96 mV
+peak noisy    : 2.88 mV (post ADC clip)
+clipped       : YES
+==========================================================================
+tag           : vibration
+clean file    : Samples/Clean/vibration_clean.wav   (140.7 KB)
+sample rate   : 12000 Hz
+samples       : 36000
+duration      : 3.000 s
+units         : g
+achieved SNR  : -10.00 dB
+RMS clean     : 0.07354 g
+RMS noise     : 0.2325 g
+peak clean    : 0.2866 g
+peak noisy    : 0.8599 g (post ADC clip)
+clipped       : YES
+==========================================================================
+tag           : music
+clean file    : Samples/Clean/music_clean.wav   (344.6 KB)
+sample rate   : 22050 Hz
+samples       : 88200
+duration      : 4.000 s
+units         : amplitude (normalised)
+achieved SNR  : -10.00 dB
+RMS clean     : 0.1154 amplitude (normalised)
+RMS noise     : 0.3649 amplitude (normalised)
+peak clean    : 0.4621 amplitude (normalised)
+peak noisy    : 1.386 amplitude (normalised) (post ADC clip)
+clipped       : YES
+==========================================================================

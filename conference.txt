@@ -1,0 +1,26 @@
+Problem
+Generative AI can quickly produce code for signal-processing and ML tasks, but these pipelines often fail on real embedded devices due to noise, non-stationary sensor data, and hardware constraints.
+The key question: How can GenAI be combined with DSP expertise to build reliable, real-world embedded pipelines?
+
+Methodology
+Compare GenAI-generated pipelines with DSP-expert pipelines.
+Identify typical GenAI mistakes (filtering, aliasing, windowing, FFT/STFT/CWT parameters).
+Test pipelines on resource-constrained embedded hardware (latency, memory, robustness).
+Propose a hybrid workflow: GenAI for speed, DSP knowledge for correctness.
+
+Conclusions
+GenAI accelerates development but lacks understanding of signal behavior and hardware limits.
+DSP expertise is essential to produce stable, efficient, and accurate pipelines.
+A hybrid GenAI + DSP approach outperforms purely automated or purely manual pipelines.
+
+Implications for Practitioners & Business
+Faster prototyping and shorter time-to-market.
+More reliable edge-AI products with fewer deployment failures.
+Lower hardware costs and better energy efficiency.
+Teams can automate routine coding and focus expertise where it matters.
+
+Points I would like will stand out:
+There process should be composed from DSP and model separately. There is a temptation of using bigger and more sophisticated model to deal with noise. This will lead to overengineered model as it will try with each iteration to make progress - in long term the API cost will blow and model will try to improve the metrics which may lead to overfitting. As there is no tire mechanism the model will try to solve the issue at all cost. Within each iteration step is optimized however the whole path when not guided is not optimized
+example: user will tell AI just look at those spectrograms - they differ it has to be the solution. AI might propose deep learning algorithms to analyze spectrograms and will use image recognition - the cost of infra and development cos (manwork or API cost) will explode as hell
+The key point of presentation is to show that domain knowledge is a key point to make strategic (not micromanagement) decision
+

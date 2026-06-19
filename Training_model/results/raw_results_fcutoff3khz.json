@@ -1,0 +1,98 @@
+{
+  "clean_fcutoff3khz_to_filtered_1st_stage_fcutoff3khz": {
+    "label": "clean_fcutoff3khz->filtered_1st_stage_fcutoff3khz",
+    "track_acc_mean": 0.404,
+    "track_acc_std": 0.032,
+    "window_acc_mean": 0.44273684210526315,
+    "window_acc_std": 0.02876285693491124,
+    "fold_track_acc": [
+      0.38,
+      0.38,
+      0.46,
+      0.42,
+      0.38
+    ],
+    "per_genre_acc": {
+      "jazz": 0.10714285714285714,
+      "metal": 0.9156626506024096,
+      "pop": 0.1927710843373494
+    },
+    "per_genre_correct": {
+      "jazz": 9,
+      "metal": 76,
+      "pop": 16
+    },
+    "per_genre_total": {
+      "jazz": 84,
+      "metal": 83,
+      "pop": 83
+    },
+    "wrong_total": 149,
+    "total": 250,
+    "confusion": [
+      [
+        9,
+        68,
+        7
+      ],
+      [
+        0,
+        76,
+        7
+      ],
+      [
+        5,
+        62,
+        16
+      ]
+    ]
+  },
+  "clean_fcutoff3khz_to_filtered_2nd_stage_fcutoff3khz": {
+    "label": "clean_fcutoff3khz->filtered_2nd_stage_fcutoff3khz",
+    "track_acc_mean": 0.45599999999999996,
+    "track_acc_std": 0.032,
+    "window_acc_mean": 0.5069473684210526,
+    "window_acc_std": 0.017957783673377796,
+    "fold_track_acc": [
+      0.44,
+      0.52,
+      0.44,
+      0.44,
+      0.44
+    ],
+    "per_genre_acc": {
+      "jazz": 0.25,
+      "metal": 0.27710843373493976,
+      "pop": 0.8433734939759037
+    },
+    "per_genre_correct": {
+      "jazz": 21,
+      "metal": 23,
+      "pop": 70
+    },
+    "per_genre_total": {
+      "jazz": 84,
+      "metal": 83,
+      "pop": 83
+    },
+    "wrong_total": 136,
+    "total": 250,
+    "confusion": [
+      [
+        21,
+        19,
+        44
+      ],
+      [
+        0,
+        23,
+        60
+      ],
+      [
+        2,
+        11,
+        70
+      ]
+    ]
+  }
+}

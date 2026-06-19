@@ -1,0 +1,348 @@
+================================================================
+HOW WE TAUGHT A GENRE CLASSIFIER TO SURVIVE A NOISY WORLD
+A development story, told in chronological order
+================================================================
+
+WHERE WE STARTED
+--------------------------------------------------------------
+
+The Training_model project already had a frozen baseline. A music
+genre classifier (RBF-SVM on a 48-dim feature vector: 20 MFCC means,
+20 MFCC stds, plus mean/std of spectral centroid, rolloff, bandwidth
+and zero-crossing rate) was being run on a 250-track dataset of
+jazz / metal / pop, evaluated under StratifiedGroupKFold so no track
+ever appeared in both train and test of the same fold.
+
+The story this baseline told was sharp:
+
+  A  clean -> clean              0.988  (the upper bound)
+  B  noisy -> noisy              0.912  (noise-aware training)
+  C  clean -> noisy              0.344  (the cliff)
+
+Training on clean and asking the model to predict on contaminated
+audio dropped accuracy from 99 % to 34 %. The noise model itself was
+nasty -- mains hum, switching tones, broadband EMI, impulsive bursts,
+1/f drift, 8-bit quantisation, plus clipping -- at SNR -10 dB.
+
+A series of "test-time denoiser" experiments (D / E / F / G) tried
+to close the gap by filtering the noisy audio before showing it to
+the clean-trained classifier:
+
+  D  clean -> filtered_AI            0.404   (AI denoiser)
+  E  clean -> filtered_1st           0.340   (classical 1st-stage)
+  F  clean -> filtered_2nd           0.436   (classical + AI 2nd-stage)
+  G  clean -> adaptivems_6th         0.492   (adaptive mean-subtraction)
+
+Two patterns showed up in those numbers that mattered for everything
+that came after.
+
+First, no test-time filter recovered more than ~23 % of the A-C gap.
+Training on noisy (B at 0.912) closed ~88 % of it. Filtering at test
+time was a much weaker lever than letting the model see the noise
+during training.
+
+Second -- and more interesting -- four of the five clean-trained
+cross-conditions (C / D / E / G) didn't degrade gracefully. They
+collapsed into a single dump-target genre. The dump shifted with
+the filter (pop for C, jazz for D, metal for E, pop for G) but in
+each case one genre took nearly everything and the other two went
+to roughly zero. Only F was the exception: its per-genre numbers
+sat in 0.33-0.57 range, with no genre disappearing. F was the only
+filter that produced a real three-way prediction, even though its
+mean accuracy (0.436) was lower than G's. That distinction --
+"highest accuracy" vs "no collapse" -- is two different problems.
+
+A separate sidequest had also tried bandlimiting the input to 3 kHz
+before extracting features (variants E' and F'). E' lifted the
+weakest filter off the chance floor (E 0.340 -> E' 0.404), F' barely
+moved in mean (F 0.436 -> F' 0.456) but its per-fold std halved.
+The lesson: deliberately throwing away high-frequency content can
+help, but where you place the cutoff matters more than whether you
+have one. We will use that lesson again in Chapter 3.
+
+A second sidequest had compared classifiers on the same 48-dim
+features. SVM's clean / noisy numbers were 0.988 / 0.876; XGBoost
+managed 0.980 / 0.852 with the same folds. SVM also produced a
+smaller noise-induced gap. So on this hand-crafted feature
+representation, SVM was the classifier to beat -- the lever with
+real upside was *richer features*, not a fancier model. We will
+return to that lesson too.
+
+
+CHAPTER 1: A NEW FILTER ARRIVES
+--------------------------------------------------------------
+
+A new filter, the "ComponentMatched 7th stage", appeared in the
+sibling project. It was a four-stage chain: a 25 Hz high-pass to
+kill 1/f drift, narrow notches at the mains harmonics 50/100/150/200
+Hz and the switching tone near 4410 Hz, then an adaptive Wiener
+stage to attack the broadband residual.
+
+We added it to the experiment matrix in the same shape as G:
+
+  H  clean -> componentmatched_7th   0.560
+
+This was the new best test-time filter (33.5 % gap recovery, vs G's
+23 %). But the per-genre breakdown was familiar: jazz 0.90, metal
+0.00, pop 0.77 -- the classifier had collapsed into a two-genre
+prediction, treating metal as if it didn't exist. Higher accuracy,
+same structural failure.
+
+
+CHAPTER 2: MATCH FEATURES TO THE FILTER'S GEOMETRY
+--------------------------------------------------------------
+
+The clean-trained model was failing on filtered audio because the
+training and test feature distributions were misaligned. The clean
+audio it learned from had peaks at the mains harmonics; the filtered
+audio it was tested on had those peaks carved out by the notches.
+MFCC bands sitting on top of those frequencies behaved differently
+in train and test.
+
+The fix we tried: replicate the filter's *linear* stages on the
+clean audio before extracting features. Same high-pass at 25 Hz,
+same notches at 50/100/150/200 and 4410 Hz. Train and test would
+then both sit on a spectrum with the same five carve-outs.
+
+  H_pf  clean_pf -> 7th_pf          0.572   (+0.012 vs H)
+
+The win was real but tiny. The notches are roughly 1.4 Hz wide --
+extremely narrow compared to MFCC mel bands that span tens to
+hundreds of Hz. Removing five thin lines barely shifted any band's
+energy. The dominant clean-to-filtered distribution shift wasn't
+coming from the notches at all. It was coming from the adaptive
+Wiener stage, which applies a data-dependent gain that suppresses
+low-SNR bins and reshapes the whole spectral envelope of the music.
+
+
+CHAPTER 3: FOLLOW THE FILTER'S PASSBAND
+--------------------------------------------------------------
+
+We could not replay Wiener on clean audio without measuring the
+noise (which the rules of the project forbid). But the filter's
+design told us something useful: below the switching tone at
+4410 Hz, music dominates the noise, so Wiener stays near unity --
+the filtered audio in 25-4000 Hz is essentially the music with a
+few thin lines missing. Above 4 kHz, broadband EMI tends to
+dominate Wiener's behaviour, and the filtered output diverges
+sharply from clean.
+
+So we extended the matched prefilter into a true band-pass: the
+same HP and notches, plus a Butterworth low-pass at 4000 Hz, applied
+identically to clean (training) and filtered (test) audio.
+
+  H_bf4000  clean_bf4000 -> 7th_bf4000     0.660  (49.1 % recovery)
+
+Per-genre: jazz 0.92, metal 0.53, pop 0.53. Only the second
+cross-condition in the project's whole history (after F) to produce
+a real three-way prediction on filtered audio with no genre near
+zero -- and at much higher overall accuracy than F's 0.436. We
+confirmed the band edge mattered by also running a 5500 Hz cutoff
+*above* the switching tone:
+
+  H_bf4000  LP at 4000 Hz  (below switching)    0.660 +/- 0.078
+  H_bf5500  LP at 5500 Hz  (above switching)    0.632 +/- 0.118
+
+H_bf5500 readmitted the heavily Wiener-attenuated 4-5.5 kHz band
+into the feature support; per-fold std almost doubled, mean dropped
+0.028, and pop slid back toward a dump (0.37). The cutoff has to
+sit just below the switching tone, not just above it. Same lesson
+as the earlier 3 kHz E'/F' sidequest, this time applied to the
+right filter and with the cutoff at the right place.
+
+Cost: the clean-on-clean anchor dropped from 0.988 to ~0.95 -- the
+LP throws away high-frequency timbre that helps with metal on
+truly-clean audio. Net: +10 pts on the cross-condition, -4 pts on
+the upper bound. Clear win.
+
+
+CHAPTER 4: USE WHAT WE KNOW ABOUT THE *KINDS* OF NOISE
+--------------------------------------------------------------
+
+We had a list of seven noise sources from the project's analysis
+documents: mains, switching, broadband EMI, impulsive bursts, 1/f
+drift, 8-bit quantisation, clipping. The prefilter handled mains,
+switching and drift. What remained?
+
+  - Impulsive bursts: short transients, ~3 per second, ~20 ms each.
+    Mean-and-std aggregation over a window's frames is sensitive
+    to these spikes -- one burst frame inflates the std and biases
+    the mean. So we replaced the aggregator: median and MAD
+    (median absolute deviation, scaled by 1.4826) instead of mean
+    and std. Same dimensionality, but burst-resistant.
+
+  - In-band broadband EMI: stationary background noise. Stationary
+    contributions average to roughly zero in the time-derivative
+    of MFCCs. So we added Delta-MFCC and DeltaDelta-MFCC, classical
+    robust-ASR features, computed per frame and aggregated with
+    the same median + MAD.
+
+  - Clipping: gives a similar signature to bursts (impulsive amplitude
+    spikes), so the median-MAD aggregator addresses it for free.
+
+None of these required peeking at the noisy files. They were a
+direct response to the *types* of noise the dataset contained.
+
+
+CHAPTER 5: WHAT MAKES JAZZ, METAL AND POP DIFFERENT (BEYOND TIMBRE)?
+--------------------------------------------------------------
+
+The 48-dim baseline was almost entirely a timbre descriptor: MFCCs
+and brightness statistics. But genres are also rhythmic, harmonic
+and dynamic creatures.
+
+We added four small blocks of musically-informed features:
+
+  - chroma_stft (12 pitch classes): metal's power chords concentrate
+    on root + 5th; jazz's extended chords spread across the chroma;
+    pop has clear major/minor tonics. Below 4 kHz is where
+    fundamentals and first overtones live, so the bf4000 prefilter
+    actually *helps* chroma, not hurts it.
+
+  - spectral_contrast: peak-vs-valley energy across sub-bands. Metal
+    distortion fills the spectral valleys (low contrast). Jazz lines
+    are clean (high contrast). Direct genre discriminator.
+
+  - spectral_flatness: tonal-vs-noisy ratio. Distorted guitar is
+    near-noisy; saxophone is near-tonal.
+
+  - RMS, crest factor, onset rate: dynamic and rhythmic descriptors.
+    Pop is heavily compressed (low RMS variance). Metal has dense,
+    fast onsets. Jazz has wide dynamic range and looser pulse.
+
+Each frame-level feature was aggregated with median + MAD; onset
+rate is one scalar per window. The vector grew from 48 dims to 173:
+60 MFCC blocks, 8 scalar spectral, 24 chroma, 14 contrast, 6
+flatness/RMS/crest, plus onset rate.
+
+
+CHAPTER 6: ALL TOGETHER -- FOUR EXPERIMENTS, ONE FEATURE STACK
+--------------------------------------------------------------
+
+We ran all four pairings under the same v2 feature stack and the
+same fold assignments:
+
+  A_v2  clean -> clean               0.964 +/- 0.015     (sanity)
+  B_v2  noisy -> noisy               0.916 +/- 0.015     (sanity)
+  H_v2  clean -> 7th                 0.796 +/- 0.054     <-- new best
+  M_v2  noisy -> 7th (the new ask)   0.332 +/- 0.010     (collapse)
+
+Two surprises in one table.
+
+The first was the headline: H_v2 = 0.796 was a huge jump on the
+cross-condition. It recovers 70 % of the original A-C cliff (versus
+the previous best of 49 %). All three genres land above 0.75 -- the
+single-genre collapse that had haunted every test-time filter from
+the start, including H_bf4000, was finally gone. The combination of
+matched prefilter + robust aggregation + temporal derivatives +
+musical features gave the classifier enough redundancy that no
+single noise pattern could knock it off any one genre.
+
+The second was the lesson: M_v2 = 0.332 is exactly chance. The
+noisy-trained model picked jazz for ~80 % of the test tracks and
+got only the actual-jazz tracks right. Why?
+
+A model trained on noisy audio doesn't just learn to *ignore* the
+noise -- it learns to use the noise as part of its feature vocabulary.
+Pop has the heaviest spectral content above 1 kHz, so it absorbs the
+most broadband EMI energy; metal has the loudest peaks, so it clips
+most often; jazz has softer transients, so it shows the smallest
+burst rate. Those are real, exploitable correlations *within the
+noisy distribution*. When the test audio comes through Stage 7,
+those noise-correlated patterns are gone -- exactly the features
+the noisy-trained classifier had come to rely on -- and it collapses.
+
+Three patterns aligned to make this clear:
+
+  - B works (noisy -> noisy):  noise present in both train and test.
+  - H works (clean -> 7th):    noise absent in train, mostly removed
+                               in test. The filter aims to recover the
+                               clean distribution, and it succeeds well
+                               enough that a clean-trained model
+                               generalises.
+  - M fails (noisy -> 7th):    train and test live on opposite sides
+                               of the noise -- the worst pairing.
+
+
+THE FINAL SCOREBOARD
+--------------------------------------------------------------
+
+Anchors (sanity, not "recovery"):
+
+  A    clean -> clean       baseline 48-dim                    0.988
+  B    noisy -> noisy       baseline 48-dim                    0.912
+  A_v2 clean -> clean       v2 173-dim                         0.964
+  B_v2 noisy -> noisy       v2 173-dim                         0.916
+
+Test-time filters, baseline 48-dim features:
+
+  C    clean -> noisy            (no filter)              0.344       -
+  E    clean -> filtered_1st     (classical 1st)          0.340   -0.6 %
+  D    clean -> filtered_AI      (AI denoiser)            0.404    9.3 %
+  F    clean -> filtered_2nd     (classical+AI 2nd)       0.436   14.3 %
+  G    clean -> adaptivems_6th   (adaptive-MS 6th)        0.492   23.0 %
+  H    clean -> componentmatched_7th  (component-matched) 0.560   33.5 %
+
+3 kHz feature-bandlimit sidequest (earlier exploration):
+
+  E'   filtered_1st under 3 kHz LPF                       0.404    9.3 %
+  F'   filtered_2nd under 3 kHz LPF                       0.456   17.4 %
+
+Stage-7-aware feature variants on the same 7th-stage test audio:
+
+  H_pf      48-dim, matched HP+notches                    0.572   35.4 %
+  H_bf5500  48-dim, HP+notches+LP at 5500 Hz              0.632   44.7 %
+  H_bf4000  48-dim, HP+notches+LP at 4000 Hz              0.660   49.1 %
+  H_v2      173-dim full v2 stack                         0.796   70.2 %
+
+The user-proposed alternative training pairing (this session):
+
+  M_v2  noisy -> 7th, v2 features                         0.332   chance
+
+Classifier sidequest on the original 48-dim features (harsher-noise era):
+
+  SVM(rbf, C=10)         clean / noisy        0.988 / 0.876
+  XGBoost(n=400, d=5)    clean / noisy        0.980 / 0.852
+
+Recovery is `(acc - C) / (A - C)` on the frozen baseline anchors.
+
+
+WHAT WE LEARNED
+--------------------------------------------------------------
+
+1. When the test pipeline includes a denoiser, train and test feature
+   distributions must end up on the same side of the noise. Stage 7
+   recovers (an approximation of) the clean distribution, so train
+   on clean. Train on noisy only when test audio is also noisy.
+
+2. Matching the linear part of a filter (notches, HP) on the clean
+   training audio is essentially free, but the gain is limited
+   because narrow notches barely move any MFCC band. The bigger
+   structural mismatch is the data-dependent part of the filter
+   (here, Wiener), which we worked around by restricting the feature
+   support to the filter's high-confidence passband (LP at 4 kHz,
+   just below the switching tone).
+
+3. Robustness comes from feature design, not just hyperparameter
+   tuning. Replacing mean+std with median+MAD costs nothing and
+   handles bursts and clipping. Adding Delta and DeltaDelta MFCCs
+   neutralises stationary in-band noise. Adding chroma and spectral
+   contrast adds a second axis of class discrimination that timbre
+   alone misses.
+
+4. Domain knowledge (where the noise comes from, what makes genres
+   musically distinct) outperforms brute hyperparameter search on a
+   small dataset. Each feature-design step here can be traced back
+   to a single sentence in the noise spec or a single musical fact
+   about the genres.
+
+5. The single-genre collapse pattern is a signal about the model,
+   not the genres. Every collapse we saw -- pop dump, jazz dump,
+   metal disappearance -- meant the classifier had latched on to a
+   feature that broke under the test-time perturbation. Each fix
+   that changed the dump target without breaking it was a partial
+   solution; the full v2 stack was the first thing that broke the
+   collapse outright.
+
+
+END.

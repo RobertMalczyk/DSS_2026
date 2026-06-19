@@ -1,0 +1,96 @@
+Experiment summary (A-H) -- Training_model, DSS2026
+====================================================
+
+Dataset:  250 tracks  (jazz=84, metal=83, pop=83), 22050 Hz, ~30 s each.
+Pipeline (frozen):
+  - 48-dim feature vector per 3 s window @ 50% overlap (19 windows/track,
+    4750 windows total): mean+std of 20 MFCCs + mean/std of spectral
+    centroid / rolloff / bandwidth / zero-crossing rate.
+  - Classifier: StandardScaler -> SVC(rbf, C=10, gamma='scale',
+    class_weight='balanced', probability=True, random_state=42).
+  - CV: StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+    over track_id. Fold sizes: 200 train / 50 test tracks
+    (3800 / 950 windows). Same folds reused across A-H, so accuracy
+    differences are attributable to the audio source, not to the split.
+  - Per-track prediction: argmax of mean soft-probabilities (soft-vote).
+
+----------------------------------------------------------------------
+Results table
+----------------------------------------------------------------------
+
+Exp | Train on | Test on                          | Accuracy (mean +/- std) | Wrong/250 | jazz | metal | pop  | Dump target
+----+----------+----------------------------------+-------------------------+-----------+------+-------+------+-------------
+ A  | clean    | clean                            | 0.988 +/- 0.016         |   3       | 0.99 | 0.99  | 0.99 | --
+ B  | noisy    | noisy                            | 0.912 +/- 0.045         |  22       | 0.90 | 0.95  | 0.88 | --
+ C  | clean    | noisy                            | 0.344 +/- 0.015         | 164       | 0.23 | 0.00  | 0.81 | pop
+ D  | clean    | filtered_AI                      | 0.404 +/- 0.064         | 149       | 0.99 | 0.00  | 0.22 | jazz
+ E  | clean    | filtered_1st_stage               | 0.340 +/- 0.013         | 165       | 0.20 | 0.81  | 0.01 | metal
+ F  | clean    | filtered_2nd_stage               | 0.436 +/- 0.078         | 141       | 0.57 | 0.33  | 0.41 | none (spread)
+ G  | clean    | filtered_adaptivems_6th_stage    | 0.492 +/- 0.020         | 127       | 0.52 | 0.00  | 0.95 | pop
+ H  | clean    | filtered_componentmatched_7th    | 0.560 +/- 0.036         | 110       | 0.90 | 0.00  | 0.77 | jazz (mild)
+
+----------------------------------------------------------------------
+Short descriptions
+----------------------------------------------------------------------
+
+A  Clean -> clean.
+   Upper bound. Same SVM + features on the cleanest possible audio;
+   essentially perfect on all three genres.
+
+B  Noisy -> noisy.
+   Noise-aware training. Train and test share the same contamination,
+   so the SVM learns features that survive the noise.
+
+C  Clean -> noisy.
+   Domain-shift baseline. Clean-trained SVM hit with raw noisy audio.
+   Collapses into a pop dump-target; metal disappears entirely.
+
+D  Clean -> filtered_AI.
+   Test-time AI denoiser only. Accuracy moves slightly above C but the
+   collapse just shifts to a different dump genre (jazz).
+
+E  Clean -> filtered_1st_stage.
+   Classical 1st-stage filter alone. Effectively a no-op for this
+   classifier; sits at the C floor with metal as the new dump target.
+
+F  Clean -> filtered_2nd_stage.
+   Classical + AI second stage. The only test-time filter that does
+   NOT collapse: all three per-genre accuracies are in 0.3-0.6 and
+   the per-fold std doubles (0.078) -- a sign the SVM is actually
+   discriminating, not guessing.
+
+G  Clean -> filtered_adaptivems_6th_stage.
+   Adaptive mean-subtraction (stage 6). Better mean accuracy than
+   D/E/F but reverts to a pop dump-target with metal at 0.00.
+
+H  Clean -> filtered_componentmatched_7th_stage.
+   Component-matched stage 7 (HP25 + detected mains/switching notches
+   + adaptive Wiener). Highest mean accuracy of any test-time filter,
+   but still pins metal at 0.00 -- effectively a "jazz + pop" two-way
+   classifier.
+
+----------------------------------------------------------------------
+Recovery of the A-C gap,  (X - C) / (A - C)
+----------------------------------------------------------------------
+
+Lever                              | Recovery
+-----------------------------------+----------
+B  noise-aware training            | ~88.0%
+H  component-matched 7th (test)    | ~33.5%
+G  adaptive-MS 6th (test)          | ~23.0%
+F  2nd-stage filter (test)         | ~14.3%
+D  AI filter (test)                |  ~9.3%
+E  1st-stage filter (test)         |  -0.6%   (no measurable help)
+
+----------------------------------------------------------------------
+One-line takeaways
+----------------------------------------------------------------------
+
+- Clean -> noisy (C) collapses into a single dump genre. The collapse
+  is structural, not gradual; reducing the noise level moves C by ~1 pt.
+- Noise-aware training (B) is the dominant lever -- ~2.6x the recovery
+  of the best test-time filter (H).
+- Test-time filter ordering is stable:
+  component-matched 7th  >  adaptive-MS 6th  >  2nd  >  AI  >  1st.
+- F is the only filter that breaks the single-genre collapse, at the
+  cost of lower mean accuracy. H wins on accuracy but still drops metal.

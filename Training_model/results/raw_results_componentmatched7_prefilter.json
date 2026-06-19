@@ -1,0 +1,98 @@
+{
+  "clean_pf_vs_clean_pf": {
+    "label": "clean_pf->clean_pf",
+    "track_acc_mean": 0.992,
+    "track_acc_std": 0.016000000000000014,
+    "window_acc_mean": 0.9675789473684212,
+    "window_acc_std": 0.014269274276067827,
+    "fold_track_acc": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.96
+    ],
+    "per_genre_acc": {
+      "jazz": 0.9880952380952381,
+      "metal": 0.9879518072289156,
+      "pop": 1.0
+    },
+    "per_genre_correct": {
+      "jazz": 83,
+      "metal": 82,
+      "pop": 83
+    },
+    "per_genre_total": {
+      "jazz": 84,
+      "metal": 83,
+      "pop": 83
+    },
+    "wrong_total": 2,
+    "total": 250,
+    "confusion": [
+      [
+        83,
+        0,
+        1
+      ],
+      [
+        0,
+        82,
+        1
+      ],
+      [
+        0,
+        0,
+        83
+      ]
+    ]
+  },
+  "clean_pf_to_filtered_componentmatched_7th_stage_pf": {
+    "label": "clean_pf->filtered_7th_pf",
+    "track_acc_mean": 0.5720000000000001,
+    "track_acc_std": 0.04308131845707602,
+    "window_acc_mean": 0.4934736842105263,
+    "window_acc_std": 0.03130689833976707,
+    "fold_track_acc": [
+      0.56,
+      0.64,
+      0.54,
+      0.6,
+      0.52
+    ],
+    "per_genre_acc": {
+      "jazz": 0.9880952380952381,
+      "metal": 0.0,
+      "pop": 0.7228915662650602
+    },
+    "per_genre_correct": {
+      "jazz": 83,
+      "metal": 0,
+      "pop": 60
+    },
+    "per_genre_total": {
+      "jazz": 84,
+      "metal": 83,
+      "pop": 83
+    },
+    "wrong_total": 107,
+    "total": 250,
+    "confusion": [
+      [
+        83,
+        0,
+        1
+      ],
+      [
+        67,
+        0,
+        16
+      ],
+      [
+        23,
+        0,
+        60
+      ]
+    ]
+  }
+}

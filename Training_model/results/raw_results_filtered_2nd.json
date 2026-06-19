@@ -1,0 +1,50 @@
+{
+  "clean_to_filtered_2nd_stage": {
+    "label": "clean->filtered_2nd_stage",
+    "track_acc_mean": 0.43599999999999994,
+    "track_acc_std": 0.07838367176906168,
+    "window_acc_mean": 0.41368421052631577,
+    "window_acc_std": 0.06446713178304438,
+    "fold_track_acc": [
+      0.46,
+      0.58,
+      0.38,
+      0.38,
+      0.38
+    ],
+    "per_genre_acc": {
+      "jazz": 0.5714285714285714,
+      "metal": 0.3253012048192771,
+      "pop": 0.40963855421686746
+    },
+    "per_genre_correct": {
+      "jazz": 48,
+      "metal": 27,
+      "pop": 34
+    },
+    "per_genre_total": {
+      "jazz": 84,
+      "metal": 83,
+      "pop": 83
+    },
+    "wrong_total": 141,
+    "total": 250,
+    "confusion": [
+      [
+        48,
+        9,
+        27
+      ],
+      [
+        16,
+        27,
+        40
+      ],
+      [
+        29,
+        20,
+        34
+      ]
+    ]
+  }
+}

@@ -1,0 +1,487 @@
+================================================================
+ENTRY THESIS: IT IS THE FEEDBACK LOOP, NOT THE COMPLEXITY
+================================================================
+
+LLMs handle complex but PROCEDURAL tasks well. "Build API +
+queue + database + dashboard + tests + deploy" is large, but
+each step has a locally verifiable output -- code compiles or
+not, test passes or not, endpoint responds or not, container
+starts or not. The model acts as a generator of plans, code,
+configs, fixes; verification is cheap and the loop closes by
+itself.
+
+LLMs struggle with EMPIRICAL-ITERATIVE tasks. "Build a signal-
+filtering / MLOps pipeline that separates signal from noise" is
+not bigger -- it is structurally different. The quality of
+step N depends on interpreting the noisy output of step N-1,
+choosing the right metric, and correcting a working hypothesis:
+
+  - did the filter remove signal along with the noise?
+  - does the metric measure what we want, or a proxy?
+  - did a fix on one slice break another?
+  - is the improvement causal, or a benchmark artefact?
+  - does the chosen threshold / window / band have a physical
+    justification?
+  - is the bug in the filter, the data, the labels, the metric,
+    the model, or in drift?
+
+Without DSP grounding, an LLM iterates metric-by-metric,
+proposes increasingly heavy solutions (CNN-on-spectrograms when
+a notch would do), and has no pruning mechanism. Every step
+optimises locally; the path is not optimised. Domain knowledge
+supplies the missing closed experimental loop: which knob to
+turn, what to measure, when to stop, whether a win is real.
+
+Literature anchors:
+
+  SensorBench (sensor-processing benchmark) -- LLMs match
+  experts on simple sensor tasks but fail on compositional ones
+  and on parameter selection. Self-verification and iterative
+  sanity checks improve results. The bottleneck is feedback,
+  not text decomposition.
+
+  IMPROVE (agentic ML-pipeline work) -- optimising the whole
+  pipeline before evaluation prevents attributing wins to
+  specific changes. Iterative single-component refinement
+  against real training feedback (the way experienced ML
+  engineers work) is more stable.
+
+The four projects below are an existence proof for this thesis.
+Signal_generation builds a structured, decomposable noise model.
+Signal_detection_RAW and Signal_detection_assist must derive
+every filter parameter from the noisy input alone -- the
+blindness rule is not a stunt, it is the part of the argument
+that proves domain reasoning, not oracle access, drives the
+wins. Training_model is the classifier loop that tells us
+whether the filter actually helped, and is where the most
+counter-intuitive result of the whole story (M_v2 = 0.332,
+chance) lives.
+
+
+================================================================
+FROM CLEAN AUDIO TO A NOISE-PROOF GENRE CLASSIFIER
+A four-project story for DSS 2026, told in chronological order
+================================================================
+
+The work spans four sibling projects that share a single working
+directory tree. Each one solved a piece of the same end-to-end
+problem: realistic instrumentation noise, a denoising chain that
+reverses it, and a learner that survives both.
+
+  Signal_generation/        builds the data and the noise model
+  Signal_detection_RAW/     blind denoising of three unknown signals
+  Signal_detection_assist/  staged filter chain on the music dataset
+  Training_model/           classifier trained and stressed under noise
+
+The numbers below come from the actual run logs (probe_noise,
+NOISE_PATTERN_ANALYSIS, COMPONENT_MATCHED_v1, the train_cross_*
+scripts). Every claim about a recovery percentage or a per-genre
+accuracy can be re-derived from results/raw_results_*.json under
+Training_model/.
+
+
+PROLOGUE: WHAT A REALISTIC NOISE ENVIRONMENT LOOKS LIKE
+--------------------------------------------------------------
+
+The first project, Signal_generation, refused to use white Gaussian
+noise as a stand-in for "interference." Real EMC contamination has
+structure: it is transient, narrowband, and broadband all at once,
+and a good measurement chain adds its own thermal floor, drift and
+quantisation on top. The pipeline we built injects seven separately
+motivated components into every clean signal:
+
+  EMC layer:
+    1. mains hum + harmonics 50 / 100 / 150 / 200 Hz
+    2. switching / clock tone at 0.40 * Nyquist (~4410 Hz @ 22050)
+    3. broadband EMI -- band-passed white over [0.05, 0.95]*Nyq
+    4. impulsive bursts -- 3 per second, exp-decay, tau = 5 ms
+
+  Measurement layer:
+    5. thermal white at 0.6 * N(0,1)
+    6. 1/f-like drift (cumulative random walk, weighted 1.5)
+    7. 8-bit quantisation noise
+
+  Final non-linearity:
+    8. ADC saturation -- hard clip at +/- 3 * peak(|clean|)
+
+A single scale alpha forces the sum to a configurable SNR target.
+At SNR = -10 dB (current setting) the noise carries ten times the
+signal power; the original waveform is conceptually present but
+substantially obscured, and three quarters of the music tracks
+trigger the clip.
+
+Three demo signals exercise the model end-to-end -- a 10 s ECG
+record from MIT-BIH, a 3 s CWRU bearing vibration trace, and a 4 s
+piano excerpt -- and the same generator is used by
+build_music_dataset.py to contaminate a 250-track music corpus
+(jazz 84, metal 83, pop 83, fs = 22050 Hz, ~30 s per track) for
+the ML experiments. Per-track seeding (sha256(file_id)) gives every
+track its own independent noise realisation while keeping the
+relative composition identical -- the same noise statistics, drawn
+fresh.
+
+This dataset (clean and noisy halves, paired by file_id) is the
+only thing the next three projects share with Signal_generation.
+The generator code, the noise spec, and the matched clean WAVs
+under Samples/Clean/ are off-limits to the filter and classifier
+projects; everything those downstream projects do has to be
+derived from the noisy waveforms themselves.
+
+
+CHAPTER 1 (Signal_detection_RAW): BLIND DENOISING WITH NOTHING BUT A WAVEFORM
+--------------------------------------------------------------
+
+The first denoising project was deliberately handed three opaque
+WAVs -- ecg_noisy.wav, vibration_noisy.wav, music_noisy.wav -- and
+told nothing else. No labels for what the signals were, no spec
+for what kinds of noise sat on top. The hard rule: every cutoff,
+every notch centre, every Q comes from inspecting the noisy input;
+no clean reference is read.
+
+The pipeline: inspect (time + Welch PSD + spectrogram) -> design
+a per-signal zero-phase chain -> apply with sosfiltfilt.
+
+What inspection alone delivered:
+
+  ecg (fs = 360 Hz, 10 s)
+      observed: large negative DC, signal band collapses into the
+                noise floor above ~14 Hz, sharp tonals at 50/72/100 Hz
+      chain:    HP Butter ord 4 @ 0.5 Hz . LP Butter ord 6 @ 30 Hz
+      result:   var(noisy)/var(filt) = 10.54x
+
+  vibration (fs = 12 kHz, 3 s)
+      observed: small DC, 50/100/150 Hz mains family, real signal
+                content as resonant clusters at ~1 kHz and ~2.4 kHz,
+                pure noise floor above ~2.5 kHz
+      chain:    HP @ 5 Hz . three notches at 50/100/150 Hz (Q=30)
+                . LP Butter ord 8 @ 2800 Hz
+      result:   var reduction 3.54x; 1 kHz / 2.4 kHz resonances
+                preserved as the actual measurement.
+
+  music (fs = 22.05 kHz, 4 s)
+      observed: rumble below ~20 Hz, 50/100 Hz mains, a tight pair
+                of peaks at 4403/4417 Hz (14 Hz apart, ~20 dB above
+                local floor) -- too sharp to be musical content
+      chain:    HP @ 25 Hz . notches 50/100 Hz (Q=30)
+                . notch 4410 Hz (Q=110, BW ~ 40 Hz)
+                NO broadband LP -- music carries content to Nyquist
+      result:   var reduction 2.96x
+
+The most important decision in this chapter was a refusal: there
+was no measurement-based justification for a low-pass on music, so
+none was applied. The music PSD outside DC, mains and 4410 Hz is
+left untouched. That self-restraint matters, because the next
+project would discover that the right band-limit decision is
+*signal-specific* -- and the decision changes again once a model
+sits downstream of the filter.
+
+
+CHAPTER 2 (Signal_detection_assist): A STAGED FILTER CHAIN BUILT FROM THE NOISY DATA
+--------------------------------------------------------------
+
+The second denoising project worked on the 250-track music dataset
+specifically, with the same blindness rule (clean is for evaluation
+only; never used to design a filter). Its goal was richer: build a
+chain that could feed a downstream classifier, and quantify SNR
+recovery and feature-space distance, not just variance reduction.
+
+It opened with a noise pattern analysis (NOISE_PATTERN_ANALYSIS/):
+across 24 noisy music files (8 per genre), the bottom-decile RMS
+frames were pooled to build a noise-only PSD, and find_peaks was
+used to extract the dominant tonal lines. The recovered table:
+
+   freq_Hz   prominence_over_continuum
+      51.1   22.0 dB
+      99.6   15.4 dB
+    4417.0   15.3 dB
+    4403.5   15.2 dB
+     150.7   14.3 dB
+     199.2   10.5 dB
+
+This recovers the 50-Hz mains family and the switching tone at
+~4410 Hz from noisy audio alone, without ever opening noise.md.
+A drift estimate (~9 % of noise power below 30 Hz) and a partial
+burst-rate estimate (envelope > median + 8 MAD) confirmed the
+slow-baseline and impulsive components qualitatively.
+
+Filters were then designed as a chain of named "stages", each
+addressing a measurement from the analysis:
+
+  Stage 1 -- low-pass / DC + rumble removal
+  Stage 2 -- assist + AI denoiser (classical chain followed by an
+             AI noise reducer, used as a 2nd-stage refinement)
+  Stage 3 -- wavelet / STFT magnitude oracle exploration
+  Stage 4 -- STFT-based denoising
+  Stage 5 -- spectral subtraction
+  Stage 6 -- adaptive mean-subtraction (the AdaptiveMS 6th stage)
+  Stage 7 -- ComponentMatched (the production filter)
+
+The Stage 7 chain is the one the classifier project consumes:
+
+  1. Butterworth HP, 25 Hz, order 2, zero-phase
+  2. Mains comb -- IIR notches at the *detected* lines
+     [51.1, 99.6, 150.7, 199.2] Hz, Q = 35
+  3. Switching notch -- centre at the detected 4403.5 Hz peak,
+     adaptive Q so width is at least 20 Hz
+  4. Adaptive Wiener (Mean-Subtraction + Decision-Directed),
+     alpha_p = 0.85, alpha_dd = 0.98, D = 96 frames,
+     B_min = 1.3, xi_min = 0.01
+
+The notch frequencies are re-discovered at every run from the
+noisy audio. The spec is never consulted. On a 9-track starter set:
+
+  mean noisy  SNR = -6.25 dB   feat-distance = 13.83
+  mean stage7 SNR = +2.24 dB   feat-distance =  8.71
+                  delta +8.50 dB           delta -5.13
+
+That +8.5 dB SNR gain is the real headline of Chapter 2.
+
+The output WAVs land back under the dataset tree as
+  out/Model/Filtered ComponentMatched 7th stage/
+so the classifier project can treat Stage 7 as just another
+"audio source" in its experiment matrix -- the same way it
+treats clean/, noisy/, filtered_AI/, and the earlier stages.
+
+
+CHAPTER 3 (Training_model): WHAT BREAKS WHEN A MODEL MEETS THE NOISE
+--------------------------------------------------------------
+
+The fourth project trained a music genre classifier (jazz / metal
+/ pop) on the 250-track corpus and used it as a stress test for
+everything upstream. Windows: 3 s, 50 % overlap, track-level
+StratifiedGroupKFold so no track ever leaks across folds.
+
+The frozen baseline was a 48-dimensional feature vector -- 20 MFCC
+means, 20 MFCC stds, and the mean+std of spectral centroid, rolloff,
+bandwidth, and zero-crossing rate -- fed to an RBF-SVM. On the
+same folds:
+
+  A  clean -> clean              0.988    upper bound
+  B  noisy -> noisy              0.912    noise-aware training
+  C  clean -> noisy              0.344    THE CLIFF
+
+99 % to 34 % -- that is what the seven-component noise model does
+to a clean-trained model. Closing it became the rest of the story.
+
+3.1  TEST-TIME DENOISERS DON'T CARRY THE LOAD
+
+Plug each denoised version of the dataset into the same clean-trained
+classifier:
+
+  D  clean -> filtered_AI         0.404    ( 9.3 % gap recovery)
+  E  clean -> filtered_1st        0.340    (-0.6 %)
+  F  clean -> filtered_2nd        0.436    (14.3 %)
+  G  clean -> adaptivems_6th      0.492    (23.0 %)
+  H  clean -> componentmatched_7th 0.560   (33.5 %)
+
+Two patterns mattered. First, the best filter recovered ~34 % of
+the gap; B (training on noisy) closed ~88 %. Filtering at test
+time is structurally weaker than letting the model see noise during
+training. Second -- and more important -- four of the five
+clean->filtered conditions collapsed into one dump-target genre
+(C dumps to pop, D to jazz, E to metal, G to pop, H to a two-genre
+prediction with metal 0.00). Only F produced a real three-way split.
+"Highest accuracy" and "no collapse" turned out to be two different
+problems.
+
+3.2  MATCH THE MODEL'S TRAINING DOMAIN TO WHAT THE FILTER PRODUCES
+
+The clean-trained classifier was failing on filtered audio because
+the train and test distributions disagree where the filter cut
+spectral lines. The fix: replicate the linear stages of Stage 7 on
+the clean training audio before extracting features -- same HP at
+25 Hz, same five notches.
+
+  H_pf   clean_pf -> 7th_pf       0.572   (35.4 % recovery)
+
+The win was real but tiny (+0.012). The notches are ~1.4 Hz wide
+relative to MFCC bands of tens to hundreds of Hz, so removing five
+thin lines barely shifts any band's energy. The dominant
+distribution shift was coming from the data-dependent Wiener stage,
+which we cannot replay on clean audio without measuring noise.
+
+The workaround: extend the matched prefilter into a band-pass with
+the cutoff just below the switching tone. Below 4 kHz, music
+dominates noise; Wiener stays near unity and the filtered audio
+is essentially the music with a few thin lines missing. Above
+4 kHz the broadband EMI dominates Wiener's behaviour and the
+output diverges from clean.
+
+  H_bf4000  HP + notches + LP @ 4000 Hz   0.660   (49.1 % recovery)
+  H_bf5500  HP + notches + LP @ 5500 Hz   0.632   (44.7 %)
+
+Per-genre on H_bf4000: jazz 0.92, metal 0.53, pop 0.53 -- the
+second cross-condition in the project history (after F) with no
+genre near zero, and at much higher overall accuracy. H_bf5500
+re-admits the heavily-Wiener-attenuated 4-5.5 kHz band; per-fold
+std almost doubles, mean drops, pop slides back toward a dump.
+The cutoff has to sit below the switching tone, not above.
+
+Clean-on-clean dropped from 0.988 to ~0.95: the 4 kHz LP throws
+away high-frequency timbre that helps with metal on truly-clean
+audio. Net: +10 pts on the cross-condition, -4 pts on the upper
+bound. Clear win.
+
+3.3  REDESIGN THE FEATURES AROUND THE NOISE WE KNOW IS LEFT
+
+Stage 7 handled mains, switching and drift. What remained?
+
+  - Impulsive bursts (~3/s, ~20 ms): mean+std aggregation is
+    sensitive to spikes. Replace with median + MAD (1.4826 * MAD).
+    Same dimensionality, burst-resistant.
+
+  - In-band broadband EMI: stationary, so it averages to zero in
+    the time-derivative. Add Delta-MFCC and DeltaDelta-MFCC,
+    aggregated with the same median + MAD.
+
+  - Clipping: same impulsive signature as bursts; covered for free
+    by median + MAD.
+
+None of these required peeking at the noisy files. They responded
+to the *types* of noise the dataset contained.
+
+In parallel, the feature set was extended with musically-informed
+descriptors so the model could lean on more than timbre when noise
+distorted the MFCCs:
+
+  - chroma_stft (12 pitch classes) -- root+5th vs spread chords
+    vs major/minor tonics. Below 4 kHz, where the bf4000 prefilter
+    keeps content intact.
+  - spectral_contrast -- distortion fills valleys (low contrast),
+    clean lines stay high contrast.
+  - spectral_flatness -- tonal vs noisy.
+  - RMS, crest factor, onset rate -- dynamics and rhythm.
+
+The vector grew from 48 dims to 173: 60 MFCC blocks, 8 spectral
+scalars, 24 chroma, 14 contrast, 6 flatness/RMS/crest, plus the
+onset-rate scalar.
+
+3.4  ALL TOGETHER -- AND ONE COUNTER-RESULT
+
+Same folds, same v2 stack, four pairings:
+
+  A_v2  clean -> clean              0.964 +/- 0.015    sanity
+  B_v2  noisy -> noisy              0.916 +/- 0.015    sanity
+  H_v2  clean -> 7th                0.796 +/- 0.054    NEW BEST
+  M_v2  noisy -> 7th                0.332 +/- 0.010    chance
+
+H_v2 = 0.796 recovers 70 % of the original A-C cliff (vs the
+previous best of 49 %). All three genres land above 0.75; the
+single-genre collapse is gone.
+
+M_v2 = 0.332 is exactly chance. The noisy-trained model picked
+jazz for ~80 % of test tracks. The reason matters: a model trained
+on noisy audio doesn't just learn to ignore the noise -- it learns
+to use the noise as part of its feature vocabulary. Pop has more
+high-frequency content, so it absorbs more broadband EMI energy;
+metal peaks loudest and clips most often; jazz has the softest
+transients and the lowest burst rate. Those are real, exploitable
+correlations *within the noisy distribution*. When Stage 7 strips
+them out, the noisy-trained classifier loses the very features it
+relied on.
+
+  - B works (noisy->noisy):  noise present in both train and test.
+  - H works (clean->7th):    noise absent in train, mostly removed
+                             in test. The filter aims for the clean
+                             distribution and gets close enough.
+  - M fails (noisy->7th):    train and test on opposite sides of
+                             the noise -- the worst pairing.
+
+
+THE FINAL SCOREBOARD
+--------------------------------------------------------------
+
+Anchors (sanity, not "recovery"):
+
+  A     clean -> clean       baseline 48-dim                0.988
+  B     noisy -> noisy       baseline 48-dim                0.912
+  A_v2  clean -> clean       v2 173-dim                     0.964
+  B_v2  noisy -> noisy       v2 173-dim                     0.916
+
+Test-time filters, baseline 48-dim features:
+
+  C   clean -> noisy            (no filter)            0.344    -
+  E   clean -> filtered_1st     (classical 1st)        0.340  -0.6 %
+  D   clean -> filtered_AI      (AI denoiser)          0.404   9.3 %
+  F   clean -> filtered_2nd     (classical+AI 2nd)     0.436  14.3 %
+  G   clean -> adaptivems_6th   (adaptive-MS 6th)      0.492  23.0 %
+  H   clean -> componentmatched_7th                    0.560  33.5 %
+
+Stage-7-aware feature variants on the same 7th-stage test audio:
+
+  H_pf      48-dim, matched HP+notches                 0.572  35.4 %
+  H_bf5500  48-dim, HP+notches+LP at 5500 Hz           0.632  44.7 %
+  H_bf4000  48-dim, HP+notches+LP at 4000 Hz           0.660  49.1 %
+  H_v2      173-dim full v2 stack                      0.796  70.2 %
+
+Counter-result (this session):
+
+  M_v2  noisy -> 7th, v2 features                      0.332  chance
+
+Earlier sidequests (kept for context):
+
+  E'  filtered_1st under 3 kHz LPF                     0.404   9.3 %
+  F'  filtered_2nd under 3 kHz LPF                     0.456  17.4 %
+  SVM(rbf, C=10)      clean / noisy        0.988 / 0.876
+  XGBoost(n=400, d=5) clean / noisy        0.980 / 0.852
+
+Recovery is `(acc - C) / (A - C)` on the frozen baseline anchors.
+
+
+WHAT THE FOUR PROJECTS, TOGETHER, TAUGHT US
+--------------------------------------------------------------
+
+1. NOISE HAS STRUCTURE. Modelling it as broadband Gaussian misses
+   most of what hurts a real measurement -- mains lines, switching
+   tones, impulsive bursts and slow drift dominate the post-mix.
+   Simulating each component separately is what makes every
+   downstream experiment interpretable: when something fails, we
+   can point at which component it failed against.
+
+2. BLIND FILTER DESIGN WORKS WHEN MEASUREMENTS DRIVE EVERY CHOICE.
+   Both Signal_detection_RAW and Signal_detection_assist
+   reconstructed the noise spec from the noisy waveforms alone,
+   without ever opening noise.md. Variance reduction up to 10x on
+   single-domain signals; +8.5 dB SNR on the music corpus from a
+   four-stage chain whose notch frequencies were re-discovered
+   at every run.
+
+3. RESTRAINT IS A FILTER STAGE. In Chapter 1 we refused a music
+   LP because nothing in the spectrum justified one. In Chapter 3
+   we *added* an LP at exactly 4 kHz because the model downstream
+   needed the train and test feature support to coincide on the
+   filter's high-confidence band. Same band-limit knob; opposite
+   decisions. Both correct, because the success criterion was
+   different.
+
+4. WHEN THE TEST PIPELINE INCLUDES A DENOISER, TRAIN AND TEST
+   FEATURE DISTRIBUTIONS HAVE TO END UP ON THE SAME SIDE OF THE
+   NOISE. Stage 7 recovers (an approximation of) the clean
+   distribution, so train on clean. Train on noisy only when the
+   test audio is also noisy. Crossing the noise boundary is the
+   worst pairing -- M_v2 made this concrete at 0.332.
+
+5. ROBUSTNESS COMES FROM FEATURE DESIGN, NOT JUST HYPERPARAMETER
+   TUNING. Replacing mean+std with median+MAD costs nothing and
+   handles bursts and clipping. Delta and DeltaDelta MFCCs
+   neutralise stationary in-band noise. Chroma and spectral
+   contrast add a second axis of class discrimination that timbre
+   alone misses. The full v2 stack was the first thing that broke
+   the single-genre collapse outright.
+
+6. DOMAIN KNOWLEDGE OUTPERFORMS BRUTE TUNING ON A SMALL DATASET.
+   Each feature-design step here can be traced back to a single
+   sentence in the noise spec or a single musical fact about the
+   genres -- not to a grid search.
+
+7. THE SINGLE-GENRE COLLAPSE PATTERN IS A SIGNAL ABOUT THE MODEL,
+   NOT THE GENRES. Every collapse we saw -- pop dump, jazz dump,
+   metal disappearance -- meant the classifier had latched onto a
+   feature that broke under the test-time perturbation. Each fix
+   that changed the dump target without breaking it was a partial
+   solution. The full v2 stack on Stage-7 audio (H_v2) was the
+   first end-to-end pairing that produced a balanced three-way
+   prediction at competitive accuracy.
+
+
+END.

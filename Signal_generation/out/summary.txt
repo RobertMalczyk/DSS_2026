@@ -1,0 +1,48 @@
+==========================================================================
+name: ECG
+source: MIT-BIH Arrhythmia DB · record 100 · lead MLII · first 10 s
+fs: 360
+samples: 3600
+duration_s: 10.0
+target_snr_db: -10.0
+achieved_snr_db: -10.0
+rms_clean: 0.3623894659065023
+rms_noise: 1.1459761123164829
+clipped: True
+plot: C:\Robak\DSS2026\Claude\Signal_generation\out\ecg_plots.png
+==========================================================================
+name: Vibration
+source: CWRU Bearing Data Center · Normal baseline 97.mat · X097_DE_time · first 3 s
+fs: 12000
+samples: 36000
+duration_s: 3.0
+target_snr_db: -10.0
+achieved_snr_db: -10.0
+rms_clean: 0.0735384317994713
+rms_noise: 0.23254894004328402
+clipped: True
+plot: C:\Robak\DSS2026\Claude\Signal_generation\out\vibration_plots.png
+==========================================================================
+name: Music
+source: GTZAN metal_01 (from out/Model/clean) · first 4 s
+fs: 22050
+samples: 88200
+duration_s: 4.0
+target_snr_db: -10.0
+achieved_snr_db: -10.000000000000002
+rms_clean: 0.11539807995681636
+rms_noise: 0.36492077027376485
+clipped: True
+plot: C:\Robak\DSS2026\Claude\Signal_generation\out\music_plots.png
+==========================================================================
+Noisy-signal WAV exports (32-bit float, post ADC clip):
+  out/Samples/ecg_noisy.wav        360 Hz,    3600 samples, 10.0 s,  14.1 KB
+  out/Samples/vibration_noisy.wav  12000 Hz, 36000 samples,  3.0 s, 140.7 KB
+  out/Samples/music_noisy.wav      22050 Hz, 88200 samples,  4.0 s, 344.6 KB
+Matched clean WAV exports (off-limits to Signal_detection_RAW):
+  out/Samples/Clean/ecg_clean.wav        14.1 KB
+  out/Samples/Clean/vibration_clean.wav 140.7 KB
+  out/Samples/Clean/music_clean.wav     344.6 KB
+  out/Samples/Clean/metrics.txt  (full RMS / SNR / peak / clip table)
+Public metadata: out/Samples/samples_info.txt  (fs / duration / units / source only)
+==========================================================================

@@ -1,0 +1,202 @@
+[
+  {
+    "variant": "compmatch_bf4000",
+    "lp_hz": 4000.0,
+    "anchor_clean_to_clean": {
+      "label": "clean_bf4000->clean_bf4000",
+      "track_acc_mean": 0.9480000000000001,
+      "track_acc_std": 0.016000000000000014,
+      "window_acc_mean": 0.9037894736842105,
+      "window_acc_std": 0.018930987070624263,
+      "fold_track_acc": [
+        0.94,
+        0.94,
+        0.94,
+        0.98,
+        0.94
+      ],
+      "per_genre_acc": {
+        "jazz": 0.9523809523809523,
+        "metal": 0.963855421686747,
+        "pop": 0.927710843373494
+      },
+      "per_genre_correct": {
+        "jazz": 80,
+        "metal": 80,
+        "pop": 77
+      },
+      "per_genre_total": {
+        "jazz": 84,
+        "metal": 83,
+        "pop": 83
+      },
+      "wrong_total": 13,
+      "total": 250,
+      "confusion": [
+        [
+          80,
+          3,
+          1
+        ],
+        [
+          0,
+          80,
+          3
+        ],
+        [
+          5,
+          1,
+          77
+        ]
+      ]
+    },
+    "cross_clean_to_7th": {
+      "label": "clean_bf4000->7th_bf4000",
+      "track_acc_mean": 0.6600000000000001,
+      "track_acc_std": 0.0779743547584717,
+      "window_acc_mean": 0.6103157894736843,
+      "window_acc_std": 0.057652699806807414,
+      "fold_track_acc": [
+        0.52,
+        0.64,
+        0.68,
+        0.72,
+        0.74
+      ],
+      "per_genre_acc": {
+        "jazz": 0.9166666666666666,
+        "metal": 0.5301204819277109,
+        "pop": 0.5301204819277109
+      },
+      "per_genre_correct": {
+        "jazz": 77,
+        "metal": 44,
+        "pop": 44
+      },
+      "per_genre_total": {
+        "jazz": 84,
+        "metal": 83,
+        "pop": 83
+      },
+      "wrong_total": 85,
+      "total": 250,
+      "confusion": [
+        [
+          77,
+          1,
+          6
+        ],
+        [
+          31,
+          44,
+          8
+        ],
+        [
+          29,
+          10,
+          44
+        ]
+      ]
+    }
+  },
+  {
+    "variant": "compmatch_bf5500",
+    "lp_hz": 5500.0,
+    "anchor_clean_to_clean": {
+      "label": "clean_bf5500->clean_bf5500",
+      "track_acc_mean": 0.952,
+      "track_acc_std": 0.016000000000000014,
+      "window_acc_mean": 0.9098947368421053,
+      "window_acc_std": 0.0203743361464172,
+      "fold_track_acc": [
+        0.94,
+        0.94,
+        0.98,
+        0.96,
+        0.94
+      ],
+      "per_genre_acc": {
+        "jazz": 0.9642857142857143,
+        "metal": 0.963855421686747,
+        "pop": 0.927710843373494
+      },
+      "per_genre_correct": {
+        "jazz": 81,
+        "metal": 80,
+        "pop": 77
+      },
+      "per_genre_total": {
+        "jazz": 84,
+        "metal": 83,
+        "pop": 83
+      },
+      "wrong_total": 12,
+      "total": 250,
+      "confusion": [
+        [
+          81,
+          3,
+          0
+        ],
+        [
+          1,
+          80,
+          2
+        ],
+        [
+          4,
+          2,
+          77
+        ]
+      ]
+    },
+    "cross_clean_to_7th": {
+      "label": "clean_bf5500->7th_bf5500",
+      "track_acc_mean": 0.632,
+      "track_acc_std": 0.1177115117564973,
+      "window_acc_mean": 0.5976842105263158,
+      "window_acc_std": 0.06964062876306644,
+      "fold_track_acc": [
+        0.42,
+        0.64,
+        0.62,
+        0.72,
+        0.76
+      ],
+      "per_genre_acc": {
+        "jazz": 0.9761904761904762,
+        "metal": 0.5421686746987951,
+        "pop": 0.37349397590361444
+      },
+      "per_genre_correct": {
+        "jazz": 82,
+        "metal": 45,
+        "pop": 31
+      },
+      "per_genre_total": {
+        "jazz": 84,
+        "metal": 83,
+        "pop": 83
+      },
+      "wrong_total": 92,
+      "total": 250,
+      "confusion": [
+        [
+          82,
+          1,
+          1
+        ],
+        [
+          36,
+          45,
+          2
+        ],
+        [
+          39,
+          13,
+          31
+        ]
+      ]
+    }
+  }
+]

@@ -1,0 +1,147 @@
+STFT settings used in the summary plots
+========================================
+
+Files affected:
+  out/ecg_plots.png, out/vibration_plots.png, out/music_plots.png
+      (lower-left + lower-right panels: Clean-signal spectrogram and
+       Noisy-signal spectrogram)
+  out/compare_spectrograms.png  (3x2 grid, clean vs noisy)
+
+Code references:
+  signal_contamination.py:204-206   (per-signal detailed plots)
+  plot_compare.py:61-63             (compare figure)
+
+Both call scipy.signal.spectrogram with the same window-size rule and the
+rest of the arguments left at scipy's defaults.
+
+
+1. Window length (nperseg) — THE knob we actually tune
+------------------------------------------------------
+
+Formula:
+    nperseg = max(64, min(1024, clean.size // 32))
+
+Per-signal values:
+
+  ECG        N=3600    @ 360 Hz   -> 3600 // 32 = 112,   nperseg = 112
+  Vibration  N=36000   @ 12000 Hz -> 36000 // 32 = 1125, nperseg = 1024 (clamped)
+  Music      N=88200   @ 22050 Hz -> 88200 // 32 = 2756, nperseg = 1024 (clamped)
+
+What each value means in physical units:
+
+  ECG        window = 112 / 360    = 311 ms  ; df = 360 / 112   ~=  3.21 Hz
+  Vibration  window = 1024 / 12000 = 85.3 ms ; df = 12000 / 1024 ~= 11.72 Hz
+  Music      window = 1024 / 22050 = 46.4 ms ; df = 22050 / 1024 ~= 21.53 Hz
+
+Why this formula:
+
+  - `clean.size // 32` targets roughly 32 time frames per signal before
+    overlap and clamping. 32 is enough columns to read temporal structure
+    on a small matplotlib panel without pixels per frame shrinking to 1.
+  - Floor at 64 prevents a nonsensically short window if somebody ever
+    runs the pipeline on a very short record — below 64 samples the
+    frequency axis becomes too coarse to see any tonal structure.
+  - Ceiling at 1024 caps memory / compute and, more importantly, prevents
+    long signals from collapsing to only a handful of time frames with
+    enormous frequency resolution. For 3 s of 12 kHz vibration, 1024 is
+    the sweet spot: 85 ms window is short enough to see the 3-per-second
+    impulsive bursts as discrete vertical stripes.
+  - The three signals end up on different points of the time/frequency
+    tradeoff *by design*: ECG gets fine frequency resolution (3.2 Hz)
+    because its Nyquist is only 180 Hz and we need to resolve the 50 Hz
+    mains + 100/150 Hz harmonics; vibration and music are clamped to the
+    upper limit, accepting coarser frequency resolution in exchange for
+    enough time frames to see bursts and beat structure.
+
+
+2. Overlap (noverlap) — scipy default
+-------------------------------------
+
+    noverlap = nperseg // 8        (scipy.signal.spectrogram default)
+
+  ECG        overlap = 14   samples (hop = 98,   time step = 272 ms)
+  Vibration  overlap = 128  samples (hop = 896,  time step = 74.7 ms)
+  Music      overlap = 128  samples (hop = 896,  time step = 40.6 ms)
+
+Why default 12.5% overlap instead of the Hann-friendly 50 %:
+
+  - These spectrograms are display-only — not used for reconstruction,
+    not used for feature extraction. 12.5 % overlap is plenty to avoid
+    scalloping-style gaps between frames at a pixel-per-frame level.
+  - 50 % overlap would quadruple compute and produce 4x as many frames,
+    which just becomes subpixel aliasing on a 700 px-wide panel.
+  - If the spectrograms ever feed a detector or an inversion step,
+    overlap should be raised to 50 % or 75 %, and the window choice in
+    point 3 revisited too.
+
+
+3. Window shape — scipy default
+-------------------------------
+
+    window = ('tukey', 0.25)       (scipy.signal.spectrogram default)
+
+  A 25 % Tukey window (cosine tapers on the first/last 12.5 % of samples,
+  rectangular in the middle) is a mild compromise between:
+    - rectangular: best frequency resolution, worst spectral leakage
+    - Hann / Hamming: best leakage suppression, ~2x frequency smearing
+
+  For visualising a mixed contamination — narrowband tones on top of a
+  broadband floor on top of impulsive bursts — mild tapering is the right
+  call. It keeps tonal lines sharp while not blowing leakage skirts over
+  the broadband floor. Full Hann would hide the mains/switching lines
+  behind their own leakage into adjacent bins given these small nperseg
+  values.
+
+
+4. FFT length (nfft) — scipy default
+------------------------------------
+
+    nfft = nperseg                 (no zero-padding)
+
+  Frequency bin spacing equals fs / nperseg (the df values in section 1).
+  Zero-padding would interpolate the display but not add information, and
+  the bin spacings above are already fine enough to resolve every tonal
+  component of the noise model:
+    - mains 50 Hz + harmonics resolved in all three signals
+      (df = 3.21 Hz for ECG; finer for the others as a ratio of fundamental)
+    - switching tone at 0.40 * Nyquist (72 / 2400 / 4410 Hz) well isolated
+
+
+5. Detrend / scaling / mode — scipy defaults
+---------------------------------------------
+
+    detrend = 'constant'           (remove DC per frame)
+    scaling = 'density'            (V**2/Hz, consistent with Welch PSD)
+    mode = 'psd'
+
+  Per-frame DC removal keeps the 1/f drift from dominating the lowest
+  bin and swamping the color scale. Density scaling means the dB values
+  in the spectrogram are directly comparable to the Welch PSD shown in
+  the adjacent panel on each *_plots.png.
+
+
+6. Color scaling
+----------------
+
+In signal_contamination.py (per-signal plots) and plot_compare.py, the
+clean and noisy spectrograms on the same figure are rendered with a
+shared vmin/vmax derived from both images combined:
+
+    vmin, vmax = min/max across 10*log10(Sxx_clean), 10*log10(Sxx_noisy)
+
+This is deliberate — it means the visual contrast between clean and
+noisy panels reflects the real power difference, not matplotlib's
+per-panel auto-scaling. You can literally see the noise floor rise
+between the two panels instead of having each one normalised to its
+own maximum.
+
+
+Summary
+-------
+
+The only actively chosen parameter is the nperseg heuristic. Everything
+else (Tukey 0.25 window, 12.5 % overlap, nfft=nperseg, density scaling)
+is scipy.signal.spectrogram's default and was kept as default because
+nothing in these display-only spectrograms needs anything tighter. If
+downstream analysis ever consumes these spectrograms, revisit overlap
+and window shape first.
